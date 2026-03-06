@@ -58,14 +58,15 @@ export function detectDevice(): DeviceInfo {
 
     const ua = navigator.userAgent;
 
-    // OS detection
+    // OS detection — check mobile OS BEFORE desktop (Android UA contains "Linux", iPad contains "Mac")
     let os = "Unknown";
-    if (/Windows/i.test(ua)) os = "Windows";
+    if (/Android/i.test(ua)) os = "Android";
+    else if (/iPhone|iPod/i.test(ua)) os = "iOS";
+    else if (/iPad/i.test(ua)) os = "iPadOS";
+    else if (/CrOS/i.test(ua)) os = "Chrome OS";
+    else if (/Windows/i.test(ua)) os = "Windows";
     else if (/Mac/i.test(ua)) os = "macOS";
     else if (/Linux/i.test(ua)) os = "Linux";
-    else if (/Android/i.test(ua)) os = "Android";
-    else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
-    else if (/CrOS/i.test(ua)) os = "Chrome OS";
 
     // Browser detection
     let browser = "Unknown";
