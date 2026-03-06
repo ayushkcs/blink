@@ -67,6 +67,39 @@ export function useFileTransfer({ sendData }: UseFileTransferOptions) {
         []
     );
 
+    /** Auto-remove a finished transfer after a delay */
+    const autoRemoveTransfer = useCallback((id: string, delayMs = 5000) => {
+        setTimeout(() => {
+            setTransfers((prev) => {
+                const next = new Map(prev);
+                next.delete(id);
+                return next;
+            });
+        }, delayMs);
+    }, []);
+
+    /** Clean up all transfers for a disconnected peer */
+    const cleanupPeerTransfers = useCallback(
+        (peerId: string) => {
+            setTransfers((prev) => {
+                const next = new Map(prev);
+                next.forEach((t, key) => {
+                    if (t.peerId === peerId && (t.status === "transferring" || t.status === "requesting" || t.status === "pending")) {
+                        next.set(key, { ...t, status: "error", progress: t.progress });
+                        // Auto-remove errored transfers after 3s
+                        setTimeout(() => {
+                            setTransfers((p) => { const n = new Map(p); n.delete(key); return n; });
+                        }, 3000);
+                    }
+                });
+                return next;
+            });
+            // Also clear any pending incoming requests from this peer
+            setIncomingRequests((prev) => prev.filter((r) => r.peerId !== peerId));
+        },
+        []
+    );
+
     /** Send a file to a peer */
     const sendFile = useCallback(
         (peerId: string, file: File) => {
@@ -173,11 +206,12 @@ export function useFileTransfer({ sendData }: UseFileTransferOptions) {
             // Send completion signal
             sendData(peerId, { type: "file-complete", id: transferId });
             updateTransfer(transferId, { progress: 100, status: "completed", eta: 0 });
+            autoRemoveTransfer(transferId, 5000);
 
             // Cleanup
             fileMapRef.current.delete(transferId);
         },
-        [sendData, updateTransfer]
+        [sendData, updateTransfer, autoRemoveTransfer]
     );
 
     /** Accept an incoming file request */
@@ -313,6 +347,7 @@ export function useFileTransfer({ sendData }: UseFileTransferOptions) {
                     downloadBlob(blob, meta.name);
 
                     updateTransfer(complete.id, { progress: 100, status: "completed", eta: 0 });
+                    autoRemoveTransfer(complete.id, 5000);
 
                     // Cleanup
                     chunksBufferRef.current.delete(complete.id);
@@ -343,5 +378,6 @@ export function useFileTransfer({ sendData }: UseFileTransferOptions) {
         rejectFile,
         handleIncomingData,
         clearTransfer,
+        cleanupPeerTransfers,
     };
 }

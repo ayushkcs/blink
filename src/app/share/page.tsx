@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
 import { RadarView } from "@/components/RadarView";
 import { DropZone } from "@/components/DropZone";
@@ -34,7 +34,23 @@ export default function SharePage() {
         rejectFile,
         handleIncomingData,
         clearTransfer,
+        cleanupPeerTransfers,
     } = useFileTransfer({ sendData });
+
+    // Track previous peers to detect disconnections
+    const prevPeersRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        const currentIds = new Set(peers.keys());
+        // Find peers that were present before but are gone now
+        prevPeersRef.current.forEach((id) => {
+            if (!currentIds.has(id)) {
+                cleanupPeerTransfers(id);
+                // Deselect if the disconnected peer was selected
+                setSelectedPeer((prev) => (prev === id ? null : prev));
+            }
+        });
+        prevPeersRef.current = currentIds;
+    }, [peers, cleanupPeerTransfers]);
 
     // Register data handler
     useEffect(() => {
