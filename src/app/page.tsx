@@ -85,10 +85,10 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon feature-icon-green">🔗</div>
-              <h3 className="feature-title">Room Codes</h3>
+              <div className="feature-icon feature-icon-green">✨</div>
+              <h3 className="feature-title">No Setup Needed</h3>
               <p className="feature-desc">
-                Share a 6-digit code to connect with anyone, anywhere. Perfect for cross-network file sharing.
+                No accounts, no downloads, no room codes. Just open the page and start sharing with nearby devices.
               </p>
             </div>
             <div className="feature-card">
@@ -116,14 +116,16 @@ export default function LandingPage() {
               <div className="how-step-number">1</div>
               <h3 className="how-step-title">Open the App</h3>
               <p className="how-step-desc">
-                Just visit the page. You&apos;ll get a unique room code instantly. Share it with the person you want to send files to.
+                Just visit the page on any device. Blink automatically detects other devices on your same network.
+
               </p>
             </div>
             <div className="how-step">
               <div className="how-step-number">2</div>
               <h3 className="how-step-title">Connect</h3>
               <p className="how-step-desc">
-                Your peer enters the same room code (or is auto-discovered on your network). A direct WebRTC connection is established.
+                Other devices on the same Wi-Fi are discovered automatically.
+                A direct WebRTC connection is established — no servers involved.
               </p>
             </div>
             <div className="how-step">

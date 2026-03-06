@@ -90,7 +90,7 @@ export function RadarView({ peers, selectedPeer, onSelectPeer, transfers }: Rada
                         </div>
                         <p className="radar-empty-text">Waiting for peers...</p>
                         <p className="radar-empty-hint">
-                            Open another tab or share your room code
+                            Open Blink on another device on the same Wi-Fi
                         </p>
                     </div>
                 )}

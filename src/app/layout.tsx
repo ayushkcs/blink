@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Blink — Instant P2P File Sharing",
   description:
-    "Zero setup, zero sign-up. Share any file instantly with anyone on your network or via a room code. Files transfer directly between browsers — never touch a server.",
+    "Zero setup, zero sign-up. Share any file instantly with anyone on your network. Files transfer directly between browsers — never touch a server.",
   keywords: ["file sharing", "P2P", "WebRTC", "peer to peer", "serverless", "instant transfer"],
   openGraph: {
     title: "Blink — Instant P2P File Sharing",

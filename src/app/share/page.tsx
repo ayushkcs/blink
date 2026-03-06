@@ -4,26 +4,26 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/Header";
 import { RadarView } from "@/components/RadarView";
 import { DropZone } from "@/components/DropZone";
-import { RoomCodePanel } from "@/components/RoomCodePanel";
+import { NetworkInfoPanel } from "@/components/NetworkInfoPanel";
 import { ProgressRing } from "@/components/ProgressRing";
 import { TransferNotification } from "@/components/TransferNotification";
 import { usePeer } from "@/hooks/usePeer";
 import { useFileTransfer } from "@/hooks/useFileTransfer";
-import { generateRoomCode } from "@/lib/discovery";
 
 export default function SharePage() {
-    const [roomCode, setRoomCode] = useState<string>("");
     const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
 
-    // Generate initial room code on mount
-    useEffect(() => {
-        setRoomCode(generateRoomCode());
-    }, []);
-
-    // PeerJS connection
-    const { myPeerId, peers, isConnecting, error, sendData, onData } = usePeer({
-        roomCode,
-    });
+    // PeerJS connection — auto-discovers peers on same network
+    const {
+        myPeerId,
+        peers,
+        isConnecting,
+        isHost,
+        error,
+        sendData,
+        onData,
+        networkId,
+    } = usePeer();
 
     // File transfer engine
     const {
@@ -57,15 +57,6 @@ export default function SharePage() {
             });
         },
         [selectedPeer, sendFile]
-    );
-
-    // Handle joining a room
-    const handleJoinRoom = useCallback(
-        (code: string) => {
-            setRoomCode(code);
-            setSelectedPeer(null);
-        },
-        []
     );
 
     // Handle accepting incoming file
@@ -102,7 +93,7 @@ export default function SharePage() {
                 {isConnecting && (
                     <div className="status-bar status-connecting">
                         <div className="status-spinner" />
-                        <span>Connecting to signaling server...</span>
+                        <span>Scanning your network for nearby devices...</span>
                     </div>
                 )}
                 {error && (
@@ -127,13 +118,14 @@ export default function SharePage() {
                         />
                     </div>
 
-                    {/* Right: Room Code + Transfers */}
+                    {/* Right: Network Info + Transfers */}
                     <div className="main-right">
-                        <RoomCodePanel
-                            roomCode={roomCode}
-                            onJoinRoom={handleJoinRoom}
+                        <NetworkInfoPanel
+                            networkId={networkId}
                             peerId={myPeerId}
                             peerCount={peers.size}
+                            isHost={isHost}
+                            isConnecting={isConnecting}
                         />
 
                         {/* Incoming file requests */}
@@ -175,26 +167,27 @@ export default function SharePage() {
                             </div>
                         )}
 
-                        {/* Peer list for manual connect */}
+                        {/* No peers hint */}
                         {peers.size === 0 && !isConnecting && (
                             <div className="no-peers-hint">
                                 <div className="hint-icon">📡</div>
-                                <h3 className="hint-title">No peers found</h3>
+                                <h3 className="hint-title">No nearby devices</h3>
                                 <p className="hint-text">
-                                    Open this app on another device on the same network, or share your room code with someone.
+                                    Open Blink on another device connected to the same Wi-Fi network.
+                                    They&apos;ll appear here automatically.
                                 </p>
                                 <div className="hint-steps">
                                     <div className="hint-step">
                                         <span className="hint-step-num">1</span>
-                                        <span>Share room code <strong>{roomCode}</strong></span>
+                                        <span>Connect both devices to the same Wi-Fi</span>
                                     </div>
                                     <div className="hint-step">
                                         <span className="hint-step-num">2</span>
-                                        <span>Other user enters the code</span>
+                                        <span>Open <strong>Blink</strong> on the other device</span>
                                     </div>
                                     <div className="hint-step">
                                         <span className="hint-step-num">3</span>
-                                        <span>Start sharing files instantly</span>
+                                        <span>Devices appear on the radar automatically</span>
                                     </div>
                                 </div>
                             </div>

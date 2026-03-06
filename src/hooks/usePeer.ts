@@ -1,16 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type Peer from "peerjs";
 import type { DataConnection } from "peerjs";
 import {
-    createPeer,
-    attachPeerEvents,
-    connectToPeer as peerConnect,
     attachConnectionEvents,
     destroyPeer,
 } from "@/lib/peer";
 import {
-    generatePeerId,
     getHashedIP,
     detectDevice,
     type DeviceInfo,
@@ -19,29 +16,23 @@ import {
 export interface PeerInfo {
     id: string;
     device: DeviceInfo;
-    connection: DataConnection;
+    connection: DataConnection | null;
 }
 
-interface UsePeerOptions {
-    roomCode: string;
-}
-
-export function usePeer({ roomCode }: UsePeerOptions) {
+export function usePeer() {
     const [myPeerId, setMyPeerId] = useState<string>("");
     const [myDevice] = useState<DeviceInfo>(() => detectDevice());
     const [peers, setPeers] = useState<Map<string, PeerInfo>>(new Map());
     const [isConnecting, setIsConnecting] = useState(true);
+    const [isHost, setIsHost] = useState(false);
     const [error, setError] = useState<string>("");
-    const peerRef = useRef<ReturnType<typeof createPeer> | null>(null);
-    const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
-    const ipHashRef = useRef<string>("");
-    const onDataCallbackRef = useRef<((data: unknown, peerId: string) => void) | null>(null);
-    const roomCodeRef = useRef(roomCode);
+    const [networkId, setNetworkId] = useState<string>("");
 
-    // Keep roomCodeRef in sync
-    useEffect(() => {
-        roomCodeRef.current = roomCode;
-    }, [roomCode]);
+    const peerRef = useRef<Peer | null>(null);
+    const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
+    const onDataCallbackRef = useRef<((data: unknown, peerId: string) => void) | null>(null);
+    const destroyedRef = useRef(false);
+    const initedRef = useRef(false);
 
     /** Register a callback for incoming data */
     const onData = useCallback(
@@ -59,103 +50,246 @@ export function usePeer({ roomCode }: UsePeerOptions) {
         }
     }, []);
 
-    /** Handle an incoming or outgoing connection */
-    const handleConnection = useCallback((conn: DataConnection) => {
-        attachConnectionEvents(conn, {
-            onOpen: () => {
-                // Send our device info
-                conn.send({
-                    type: "device-info",
-                    device: detectDevice(),
-                    peerId: peerRef.current?.id ?? "",
-                });
-            },
-            onData: (data: unknown) => {
-                const msg = data as Record<string, unknown>;
-                if (msg && msg.type === "device-info") {
-                    const peerInfo: PeerInfo = {
-                        id: msg.peerId as string,
-                        device: msg.device as DeviceInfo,
-                        connection: conn,
-                    };
-                    connectionsRef.current.set(peerInfo.id, conn);
-                    setPeers((prev) => {
-                        const next = new Map(prev);
-                        next.set(peerInfo.id, peerInfo);
-                        return next;
-                    });
-                } else {
-                    // Forward to data callback
-                    onDataCallbackRef.current?.(data, conn.peer);
-                }
-            },
-            onClose: () => {
-                connectionsRef.current.delete(conn.peer);
-                setPeers((prev) => {
-                    const next = new Map(prev);
-                    next.delete(conn.peer);
-                    return next;
-                });
-            },
-            onError: (err) => {
-                console.error("Connection error:", err);
-            },
+    /** Broadcast data to all connected peers */
+    const broadcastPeerList = useCallback(() => {
+        const peerList = Array.from(connectionsRef.current.keys());
+        connectionsRef.current.forEach((conn) => {
+            if (conn.open) {
+                conn.send({ type: "peer-list", peers: peerList });
+            }
         });
     }, []);
 
-    /** Connect to a peer by ID */
-    const connectToPeer = useCallback(
-        (remotePeerId: string) => {
-            if (!peerRef.current || connectionsRef.current.has(remotePeerId)) return;
-            const conn = peerConnect(peerRef.current, remotePeerId);
-            handleConnection(conn);
+    /** Handle an established connection */
+    const handleConnection = useCallback(
+        (conn: DataConnection, isHostRole: boolean) => {
+            attachConnectionEvents(conn, {
+                onOpen: () => {
+                    // Send our device info
+                    conn.send({
+                        type: "device-info",
+                        device: detectDevice(),
+                        peerId: peerRef.current?.id ?? "",
+                    });
+                },
+                onData: (data: unknown) => {
+                    const msg = data as Record<string, unknown>;
+                    if (!msg || !msg.type) return;
+
+                    if (msg.type === "device-info") {
+                        const peerInfo: PeerInfo = {
+                            id: msg.peerId as string,
+                            device: msg.device as DeviceInfo,
+                            connection: conn,
+                        };
+                        connectionsRef.current.set(peerInfo.id, conn);
+                        setPeers((prev) => {
+                            const next = new Map(prev);
+                            next.set(peerInfo.id, peerInfo);
+                            return next;
+                        });
+
+                        // If we're the host, tell everyone about the new peer
+                        if (isHostRole) {
+                            broadcastPeerList();
+                        }
+                    } else if (msg.type === "peer-list") {
+                        // We received a peer list from the host - connect to peers we don't know
+                        const peerList = msg.peers as string[];
+                        const myId = peerRef.current?.id;
+                        peerList.forEach((pid) => {
+                            if (pid !== myId && !connectionsRef.current.has(pid)) {
+                                // Connect to this peer
+                                const newConn = peerRef.current!.connect(pid, {
+                                    reliable: true,
+                                    serialization: "binary",
+                                });
+                                handleConnection(newConn, false);
+                            }
+                        });
+                    } else {
+                        // Forward to data callback (file transfer messages)
+                        onDataCallbackRef.current?.(data, conn.peer);
+                    }
+                },
+                onClose: () => {
+                    const closedPeerId = conn.peer;
+                    connectionsRef.current.delete(closedPeerId);
+                    setPeers((prev) => {
+                        const next = new Map(prev);
+                        // Find and remove by connection
+                        next.forEach((peerInfo, key) => {
+                            if (peerInfo.connection === conn || key === closedPeerId) {
+                                next.delete(key);
+                            }
+                        });
+                        return next;
+                    });
+
+                    // If host, broadcast updated peer list
+                    if (isHostRole) {
+                        broadcastPeerList();
+                    }
+                },
+                onError: (err) => {
+                    console.warn("Connection error:", err.message);
+                },
+            });
         },
-        [handleConnection]
+        [broadcastPeerList]
     );
 
-    /** Initialize the peer */
+    /** Initialize the peer connection */
     useEffect(() => {
-        // Don't init until we have a valid room code
-        if (!roomCode || roomCode.length < 6) return;
-
-        let destroyed = false;
+        if (initedRef.current) return;
+        initedRef.current = true;
+        destroyedRef.current = false;
 
         const init = async () => {
             try {
                 const ipHash = await getHashedIP();
-                ipHashRef.current = ipHash;
+                setNetworkId(ipHash);
 
-                // PeerJS IDs must be alphanumeric with hyphens/underscores only
-                const prefix = `blink${roomCode}${ipHash}`;
-                const peerId = generatePeerId(prefix);
+                const hostId = `blink${ipHash}host`;
 
-                const peer = createPeer(peerId);
-                peerRef.current = peer;
+                // Dynamically import PeerJS (client-side only)
+                const { default: PeerJS } = await import("peerjs");
 
-                attachPeerEvents(peer, {
-                    onOpen: (id) => {
-                        if (destroyed) return;
-                        setMyPeerId(id);
-                        setIsConnecting(false);
-                    },
-                    onConnection: (conn) => {
-                        if (destroyed) return;
-                        handleConnection(conn);
-                    },
-                    onDisconnect: () => {
-                        if (destroyed) return;
-                        // Try to reconnect
-                        peer.reconnect();
-                    },
-                    onError: (err) => {
-                        if (destroyed) return;
-                        console.error("Peer error:", err);
-                        setError(err.message);
-                        setIsConnecting(false);
-                    },
-                });
+                // Step 1: Try to become the host
+                const tryAsHost = () =>
+                    new Promise<boolean>((resolve) => {
+                        const hostPeer = new PeerJS(hostId, {
+                            debug: 0,
+                            config: {
+                                iceServers: [
+                                    { urls: "stun:stun.l.google.com:19302" },
+                                    { urls: "stun:stun1.l.google.com:19302" },
+                                    { urls: "stun:stun2.l.google.com:19302" },
+                                ],
+                            },
+                        });
+
+                        const timeout = setTimeout(() => {
+                            // If no error/open after 5s, something is wrong
+                            hostPeer.destroy();
+                            resolve(false);
+                        }, 6000);
+
+                        hostPeer.on("open", () => {
+                            clearTimeout(timeout);
+                            if (destroyedRef.current) {
+                                hostPeer.destroy();
+                                return;
+                            }
+                            // We are the host!
+                            peerRef.current = hostPeer;
+                            setMyPeerId(hostId);
+                            setIsHost(true);
+                            setIsConnecting(false);
+
+                            // Listen for incoming connections
+                            hostPeer.on("connection", (conn) => {
+                                if (!destroyedRef.current) {
+                                    handleConnection(conn, true);
+                                }
+                            });
+
+                            hostPeer.on("disconnected", () => {
+                                if (!destroyedRef.current) hostPeer.reconnect();
+                            });
+
+                            resolve(true);
+                        });
+
+                        hostPeer.on("error", (err) => {
+                            clearTimeout(timeout);
+                            hostPeer.destroy();
+                            // ID is taken or unavailable — someone else is host
+                            resolve(false);
+                        });
+                    });
+
+                // Step 2: Connect as a client to the host
+                const connectAsClient = () =>
+                    new Promise<boolean>((resolve) => {
+                        const randomSuffix = Math.random().toString(36).slice(2, 8);
+                        const clientId = `blink${ipHash}${randomSuffix}`;
+
+                        const clientPeer = new PeerJS(clientId, {
+                            debug: 0,
+                            config: {
+                                iceServers: [
+                                    { urls: "stun:stun.l.google.com:19302" },
+                                    { urls: "stun:stun1.l.google.com:19302" },
+                                    { urls: "stun:stun2.l.google.com:19302" },
+                                ],
+                            },
+                        });
+
+                        const timeout = setTimeout(() => {
+                            clientPeer.destroy();
+                            resolve(false);
+                        }, 8000);
+
+                        clientPeer.on("open", () => {
+                            clearTimeout(timeout);
+                            if (destroyedRef.current) {
+                                clientPeer.destroy();
+                                return;
+                            }
+
+                            peerRef.current = clientPeer;
+                            setMyPeerId(clientId);
+                            setIsHost(false);
+                            setIsConnecting(false);
+
+                            // Connect to the host
+                            const conn = clientPeer.connect(hostId, {
+                                reliable: true,
+                                serialization: "binary",
+                            });
+                            handleConnection(conn, false);
+
+                            // Also listen for incoming connections from other peers
+                            clientPeer.on("connection", (inConn) => {
+                                if (!destroyedRef.current) {
+                                    handleConnection(inConn, false);
+                                }
+                            });
+
+                            clientPeer.on("disconnected", () => {
+                                if (!destroyedRef.current) clientPeer.reconnect();
+                            });
+
+                            resolve(true);
+                        });
+
+                        clientPeer.on("error", (err) => {
+                            clearTimeout(timeout);
+                            console.warn("Client peer error:", err);
+                            clientPeer.destroy();
+                            resolve(false);
+                        });
+                    });
+
+                // Execute: try host first, then client
+                const isHostNow = await tryAsHost();
+                if (destroyedRef.current) return;
+
+                if (!isHostNow) {
+                    const connected = await connectAsClient();
+                    if (!connected && !destroyedRef.current) {
+                        // Neither host nor client worked — retry as host
+                        // (the previous host may have disconnected)
+                        const retryHost = await tryAsHost();
+                        if (!retryHost && !destroyedRef.current) {
+                            setError("Could not connect. Please refresh and try again.");
+                            setIsConnecting(false);
+                        }
+                    }
+                }
             } catch (err) {
-                if (!destroyed) {
+                if (!destroyedRef.current) {
                     setError((err as Error).message);
                     setIsConnecting(false);
                 }
@@ -165,22 +299,22 @@ export function usePeer({ roomCode }: UsePeerOptions) {
         init();
 
         return () => {
-            destroyed = true;
+            destroyedRef.current = true;
             destroyPeer(peerRef.current);
             peerRef.current = null;
             connectionsRef.current.clear();
         };
-    }, [roomCode, handleConnection]);
+    }, [handleConnection]);
 
     return {
         myPeerId,
         myDevice,
         peers,
         isConnecting,
+        isHost,
         error,
-        connectToPeer,
         sendData,
         onData,
-        ipHash: ipHashRef.current,
+        networkId,
     };
 }
