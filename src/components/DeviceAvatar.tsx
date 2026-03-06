@@ -11,66 +11,113 @@ interface DeviceAvatarProps {
 }
 
 export function DeviceAvatar({ peer, isSelected, onClick, progress }: DeviceAvatarProps) {
-    const deviceIcon = getDeviceIcon(peer.device.type);
-    const initial = peer.device.browser.charAt(0).toUpperCase();
+    const { gradient, iconColor, glowColor } = getDeviceTheme(peer.device.type);
 
     return (
         <button
             className={`device-avatar ${isSelected ? "device-avatar-selected" : ""}`}
             onClick={onClick}
-            title={peer.device.name}
+            title={`${peer.device.name} — Click to select`}
             id={`peer-${peer.id}`}
         >
+            {/* Outer glow when selected */}
+            {isSelected && (
+                <div
+                    className="device-avatar-glow"
+                    style={{ background: glowColor }}
+                />
+            )}
+
             {/* Progress ring */}
             {progress !== undefined && progress > 0 && progress < 100 && (
-                <svg className="device-progress-ring" viewBox="0 0 44 44">
+                <svg className="device-progress-ring" viewBox="0 0 80 80">
                     <circle
-                        cx="22"
-                        cy="22"
-                        r="20"
+                        cx="40" cy="40" r="36"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
-                        opacity="0.15"
+                        opacity="0.1"
                     />
                     <circle
-                        cx="22"
-                        cy="22"
-                        r="20"
+                        cx="40" cy="40" r="36"
                         fill="none"
-                        stroke="url(#progressGradient)"
-                        strokeWidth="2.5"
+                        stroke="url(#avatarProgressGrad)"
+                        strokeWidth="3"
                         strokeLinecap="round"
-                        strokeDasharray={`${2 * Math.PI * 20}`}
-                        strokeDashoffset={`${2 * Math.PI * 20 * (1 - progress / 100)}`}
-                        transform="rotate(-90 22 22)"
+                        strokeDasharray={`${2 * Math.PI * 36}`}
+                        strokeDashoffset={`${2 * Math.PI * 36 * (1 - progress / 100)}`}
+                        transform="rotate(-90 40 40)"
                     />
                     <defs>
-                        <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <linearGradient id="avatarProgressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                             <stop offset="0%" stopColor="#6366f1" />
-                            <stop offset="100%" stopColor="#8b5cf6" />
+                            <stop offset="100%" stopColor="#a78bfa" />
                         </linearGradient>
                     </defs>
                 </svg>
             )}
 
-            <div className="device-avatar-inner">
-                <span className="device-icon">{deviceIcon}</span>
-                <span className="device-initial">{initial}</span>
+            {/* Main avatar circle */}
+            <div className="device-avatar-inner" style={{ background: gradient }}>
+                <DeviceIcon type={peer.device.type} color={iconColor} />
             </div>
 
-            <span className="device-name">{peer.device.browser}</span>
+            {/* Device label */}
+            <span className="device-name">
+                {peer.device.os === "Unknown" ? peer.device.browser : peer.device.os}
+            </span>
         </button>
     );
 }
 
-function getDeviceIcon(type: string): string {
+/** SVG icons for each device type — much sharper than emojis */
+function DeviceIcon({ type, color }: { type: string; color: string }) {
     switch (type) {
         case "phone":
-            return "📱";
+            return (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                    <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" />
+                </svg>
+            );
         case "tablet":
-            return "📱";
-        default:
-            return "💻";
+            return (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+                    <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" />
+                </svg>
+            );
+        default: // desktop
+            return (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+            );
+    }
+}
+
+/** Device-type-specific color themes */
+function getDeviceTheme(type: string) {
+    switch (type) {
+        case "phone":
+            return {
+                gradient: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+                iconColor: "#16a34a",
+                glowColor: "rgba(22, 163, 74, 0.15)",
+            };
+        case "tablet":
+            return {
+                gradient: "linear-gradient(135deg, #fff7ed, #ffedd5)",
+                iconColor: "#ea580c",
+                glowColor: "rgba(234, 88, 12, 0.15)",
+            };
+        default: // desktop
+            return {
+                gradient: "linear-gradient(135deg, #eef2ff, #e0e7ff)",
+                iconColor: "#4f46e5",
+                glowColor: "rgba(79, 70, 229, 0.15)",
+            };
     }
 }

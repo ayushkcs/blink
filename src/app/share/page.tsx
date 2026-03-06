@@ -197,7 +197,7 @@ export default function SharePage() {
             </main>
 
             <footer className="footer">
-                <p>Files are transferred directly between browsers — never stored on any server.</p>
+                <p>Files are transferred directly between browsers. Never stored on any server.</p>
                 <p className="footer-sub">Powered by WebRTC · End-to-end encrypted</p>
             </footer>
         </div>

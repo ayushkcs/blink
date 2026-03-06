@@ -803,69 +803,74 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   background: none;
   border: none;
   cursor: pointer;
   padding: 4px;
   position: relative;
-  transition: transform 0.2s;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .device-avatar:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
+}
+
+.device-avatar-glow {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-full);
+  filter: blur(12px);
+  z-index: 0;
+  animation: glowPulse 2s ease-in-out infinite;
 }
 
 .device-avatar-selected .device-avatar-inner {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 16px var(--accent-glow), 0 4px 12px rgba(99, 102, 241, 0.15);
-  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px var(--accent-glow), 0 4px 16px rgba(99, 102, 241, 0.18);
+  transform: scale(1.05);
 }
 
 .device-avatar-inner {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--radius-full);
   background: var(--bg-card);
-  border: 2px solid var(--border-strong);
+  border: 2.5px solid var(--border-strong);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  transition: all 0.3s;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   z-index: 1;
-  box-shadow: var(--shadow-sm);
-}
-
-.device-icon {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.device-initial {
-  font-size: 8px;
-  font-weight: 700;
-  color: var(--accent-primary);
-  line-height: 1;
+  box-shadow: var(--shadow-md);
 }
 
 .device-name {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-secondary);
   white-space: nowrap;
-  max-width: 70px;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
 }
 
 .device-progress-ring {
   position: absolute;
-  inset: -4px;
-  width: calc(100% + 8px);
-  height: calc(100% + 8px);
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 72px;
   z-index: 2;
   color: var(--accent-dim);
 }

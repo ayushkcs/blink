@@ -39,7 +39,7 @@ export function Header() {
                         Share Files
                     </Link>
                     <a
-                        href="https://github.com"
+                        href="https://github.com/ayushkcs/blink"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="header-link"
